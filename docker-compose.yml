@@ -26,7 +26,7 @@ services:
   api-server:
     build: 
       context: .
-      dockerfile: src/api/Dockerfile
+      dockerfile: src/api-server/Dockerfile
     env_file:
       - .env
     ports:
@@ -42,7 +42,7 @@ services:
   search-worker:
     build: 
       context: .
-      dockerfile: src/search/Dockerfile
+      dockerfile: src/search-worker/Dockerfile
     env_file:
       - .env
     depends_on:
@@ -56,7 +56,7 @@ services:
   ai-worker:
     build: 
       context: .
-      dockerfile: src/ai/Dockerfile
+      dockerfile: src/ai-worker/Dockerfile
     env_file:
       - .env
     depends_on:
