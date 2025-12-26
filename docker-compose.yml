@@ -1,8 +1,67 @@
-version: '3.8'
-
 services:
-  # 1. 메인 백엔드
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    stop_grace_period: 1m # 무거운 컨테이너 종료 대기
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # 통신 시 컨테이너끼리는 내부 주소 kafka:29092, 호스트에서는 localhost:9092 사용
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    stop_grace_period: 2m
+
+  # 1. API 서버 (요청 접수)
   api-server:
-    build: ./src/api-server
+    build: 
+      context: .
+      dockerfile: src/api/Dockerfile
+    env_file:
+      - .env
     ports:
       - "8000:8000"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    init: true #for terminate sig accept
+    stop_grace_period: 30s
+
+  # 2. 검색 워커 (중간 단계)
+  search-worker:
+    build: 
+      context: .
+      dockerfile: src/search/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    init: true
+    stop_grace_period: 30s
+
+  # 3. AI 워커 (최종 단계 - 현재는 Mock)
+  ai-worker:
+    build: 
+      context: .
+      dockerfile: src/ai/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    init: true
+    stop_grace_period: 30s
