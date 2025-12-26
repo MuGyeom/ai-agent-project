@@ -1,0 +1,18 @@
+# .yamllint
+---
+extends: default
+
+rules:
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+
+  line-length:
+    max: 120
+    level: warning  # 에러 대신 경고로 표시
+
+  quoted-strings: disable
+
+  # 진리값 혼동 방지 (yes/no/on/off -> "yes"/"no"...)
+  truthy:
+    level: error

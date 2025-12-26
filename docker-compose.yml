@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  # 1. 메인 백엔드
+  api-server:
+    build: ./src/api-server
+    ports:
+      - "8000:8000"

@@ -1,0 +1,11 @@
+# pyproject.toml
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+# Black은 기본적으로 스페이스 4칸을 사용하므로 별도 설정 불필요
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
