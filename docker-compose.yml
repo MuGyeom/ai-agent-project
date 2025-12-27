@@ -15,8 +15,8 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # 통신 시 컨테이너끼리는 내부 주소 kafka:29092, 호스트에서는 localhost:9092 사용
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      # 통신 시 컨테이너끼리는 내부 주소 kafka:29092, 호스트에서는 tailscale IP:9092 사용
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://100.113.118.32:9092,
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -53,15 +53,15 @@ services:
     stop_grace_period: 30s
 
   # 3. AI 워커 (최종 단계 - 현재는 Mock)
-  ai-worker:
-    build: 
-      context: .
-      dockerfile: src/ai-worker/Dockerfile
-    env_file:
-      - .env
-    depends_on:
-      - kafka
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    init: true
-    stop_grace_period: 30s
+  #ai-worker:
+  #  build: 
+  #    context: .
+  #    dockerfile: src/ai-worker/Dockerfile
+  #  env_file:
+  #    - .env
+  #  depends_on:
+  #    - kafka
+  #  environment:
+  #    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #  init: true
+  #  stop_grace_period: 30s

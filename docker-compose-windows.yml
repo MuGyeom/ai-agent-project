@@ -1,0 +1,20 @@
+services:
+  ai-worker:
+    build:
+      context: .
+      dockerfile: src/ai-worker/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src  # (선택) 코드 수정 시 바로 반영되게 마운트
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # GPU가 없거나 설정 안 됐으면 위 deploy 섹션은 일단 주석 처리하세요.
+    restart: on-failure
+    stop_grace_period: 30s
+    init: true
