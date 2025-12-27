@@ -1,15 +1,20 @@
 from fastapi import FastAPI
+from pydantic import BaseModel  # <-- 필수 import
 from common.utils import KafkaProducerWrapper
-from common.config import settings
 
 app = FastAPI()
 producer = KafkaProducerWrapper()
 
 
+# [수정] 요청 데이터 구조 정의 (Schema)
+class AnalyzeRequest(BaseModel):
+    topic: str
+
+
 @app.post("/analyze")
-def analyze(topic: str):
-    # topic과 payload를 직접 지정해서 유연하게 사용
+def analyze(req: AnalyzeRequest):  # <-- 여기를 AnalyzeRequest 타입으로 변경
+    # req.topic 으로 데이터 접근
     producer.send_data(
-        topic=settings.KAFKA_TOPIC_API, value={"topic": topic, "status": "requested"}
+        topic="search-queue", value={"topic": req.topic, "status": "requested"}
     )
-    return {"status": "ok"}
+    return {"status": "ok", "message": f"Analysis started for {req.topic}"}

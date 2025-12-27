@@ -28,7 +28,7 @@
     * `api-server`, `search-worker`, `ai-worker`: 애플리케이션 서비스.
 2.  **Build Strategy:**
     * 모든 서비스의 빌드 컨텍스트(`context`)를 프로젝트 루트(`.`)로 설정하여 `src/common` 모듈 접근 허용.
-    * Dockerfile 내부에서 `COPY src/api .` 및 `COPY src/common ./common` 패턴을 사용하여 컨테이너 내부 경로 구조를 단순화(Flatten).
+    * Dockerfile 내부에서 `COPY src/api-server .` 및 `COPY src/common ./common` 패턴을 사용하여 컨테이너 내부 경로 구조를 단순화(Flatten).
 3.  **Stability Configuration:**
     * `restart: on-failure`: Kafka 부팅 지연 등으로 인한 초기 연결 실패 시 자동 복구.
     * `init: true`: 좀비 프로세스 방지 및 SIGTERM 시그널의 올바른 전달.

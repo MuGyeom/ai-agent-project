@@ -3,3 +3,4 @@ uvicorn
 kafka-python
 pydantic-settings
 trafilatura
+duckduckgo-search

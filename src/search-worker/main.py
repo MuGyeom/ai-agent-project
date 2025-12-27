@@ -1,33 +1,77 @@
-import trafilatura  # 크롤링 라이브러리는 워커에서만 임포트
-from common.utils import KafkaConsumerWrapper, KafkaProducerWrapper
+import time
+import trafilatura
+from duckduckgo_search import DDGS
 from common.config import settings
+from common.utils import KafkaConsumerWrapper, KafkaProducerWrapper
+
+
+def search_and_crawl(topic, max_results=3):
+    """
+    1. DuckDuckGo 검색
+    2. 상위 N개 URL 수집
+    3. 본문 크롤링 및 병합
+    """
+    print(f"🔍 Searching for: {topic}")
+    results = []
+
+    # 1. 검색 수행
+    try:
+        with DDGS() as ddgs:
+            # ddgs.text()는 제너레이터이므로 리스트로 변환
+            search_results = list(ddgs.text(topic, max_results=max_results))
+
+        for result in search_results:
+            url = result["href"]
+            title = result["title"]
+            print(f"   👉 Found: {title} ({url})")
+
+            # 2. 본문 크롤링 (trafilatura)
+            downloaded = trafilatura.fetch_url(url)
+            if downloaded:
+                text = trafilatura.extract(downloaded)
+                if text:
+                    results.append(
+                        f"Source: {title} ({url})\nContent:\n{text[:1000]}...\n"
+                    )  # 너무 길지 않게 1000자 제한
+                else:
+                    print(f"      ⚠️ No content extracted from {url}")
+            else:
+                print(f"      ⚠️ Failed to fetch {url}")
+
+            time.sleep(1)  # 차단 방지를 위한 예의바른 대기
+
+    except Exception as e:
+        print(f"❌ Search Error: {e}")
+
+    return "\n---\n".join(results)
 
 
 def process_search():
-    # 1. Consumer: search-queue에서 할 일 가져옴
     consumer = KafkaConsumerWrapper(
         topic=settings.KAFKA_TOPIC_SEARCH, group_id=settings.KAFKA_GROUP_SEARCH
     )
-
-    # 2. Producer: 결과물을 ai-queue로 보냄
     producer = KafkaProducerWrapper()
 
+    print(f"🚀 [Search Worker] Ready using DuckDuckGo...")
+
     for message in consumer.get_messages():
-        task = message.value
-        keyword = task["topic"]
-        print(f"🔍 Crawling: {keyword}")
+        try:
+            task = message.value
+            topic = task.get("topic")
 
-        # --- 크롤링 로직 (비즈니스 로직) ---
-        # 실제로는 여기서 구글 검색 후 URL을 따와야 하지만 예시로 직관적인 URL 사용
-        downloaded = trafilatura.fetch_url("https://example.com")
-        content = trafilatura.extract(downloaded) if downloaded else ""
-        # ------------------------------
+            # 검색 및 크롤링 수행
+            combined_context = search_and_crawl(topic)
 
-        # 다음 단계로 전송
-        producer.send_data(
-            topic=settings.KAFKA_TOPIC_SEARCH,
-            value={"context": content, "original_topic": keyword},
-        )
+            if not combined_context:
+                combined_context = "No relevant information found."
+
+            # AI Worker로 전송
+            payload = {"original_topic": topic, "context": combined_context}
+            producer.send_data(topic=settings.KAFKA_TOPIC_AI, value=payload)
+            print(f"✅ [Forwarded] Sent {len(combined_context)} chars to AI Worker.")
+
+        except Exception as e:
+            print(f"❌ Worker Error: {e}")
 
 
 if __name__ == "__main__":

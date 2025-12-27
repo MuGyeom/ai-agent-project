@@ -1,32 +1,36 @@
-import os, time
-from common.utils import KafkaConsumerWrapper
+import time
 from common.config import settings
+from common.utils import KafkaConsumerWrapper
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
-
-def start_worker():
-    print("Waiting for Kafka...")
-
+def process_ai():
     consumer = KafkaConsumerWrapper(
         topic=settings.KAFKA_TOPIC_AI, group_id=settings.KAFKA_GROUP_AI
     )
 
-    print("[AI Worker] Started. Listening...")
+    print(f"🤖 [AI Worker] Waiting for research data...")
 
     for message in consumer.get_messages():
-        task = message.value
-        context = task.get("context")
+        try:
+            task = message.value
+            original_topic = task.get("original_topic")
+            context = task.get("context")
 
-        print(f"[AI Worker] Processing context: {context[:30]}...")
+            print("\n" + "=" * 50)
+            print(f"📥 Topic: {original_topic}")
+            print(f"📄 Research Data (Combined):")
+            # 내용이 기니까 앞부분만 살짝 출력
+            print(context[:500] + "\n... (more) ...")
+            print("=" * 50)
 
-        # --- 가짜 GPU 추론 (vLLM 나중에 적용) ---
-        time.sleep(3)  # 생각하는 척
-        final_report = f"Analysis Report: Based on {context}, the conclusion is..."
-        # -------------------------------------
+            # --- Mock LLM ---
+            print("🧠 Analyzing & Summarizing...")
+            time.sleep(3)
+            print("✅ Final Report Generated (Mock).")
 
-        print(f"✅ [DONE] Final Report Created: {final_report}")
+        except Exception as e:
+            print(f"❌ Error: {e}")
 
 
 if __name__ == "__main__":
-    start_worker()
+    process_ai()
