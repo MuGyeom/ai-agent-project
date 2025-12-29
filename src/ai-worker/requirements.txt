@@ -1,4 +1,7 @@
-fastapi
-uvicorn
+# Kafka & Config
 kafka-python
 pydantic-settings
+
+# LLM Inference
+vllm
+torch

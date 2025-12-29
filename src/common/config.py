@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # [Infra]
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
+    KAFKA_BROKER: str | None = None
     KAFKA_TOPIC_RAW: str = "topic_raw"
     KAFKA_TOPIC_API: str = "api-queue"
     KAFKA_TOPIC_SEARCH: str = "search-queue"

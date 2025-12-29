@@ -2,7 +2,11 @@ import json, time, sys, signal
 from kafka import KafkaProducer, KafkaConsumer, errors
 from common.config import settings
 
-BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
+KAFKA_SERVER = (
+    settings.KAFKA_BROKER if settings.KAFKA_BROKER else settings.KAFKA_BOOTSTRAP_SERVERS
+)
+# 디버깅을 위해 현재 사용 중인 주소 출력
+print(f"🔗 [Utils] Connecting to Kafka Brokers: {KAFKA_SERVER}")
 
 
 class KafkaProducerWrapper:
@@ -15,7 +19,7 @@ class KafkaProducerWrapper:
         while attempt < max_retries:
             try:
                 producer = KafkaProducer(
-                    bootstrap_servers=[BOOTSTRAP_SERVERS],
+                    bootstrap_servers=[KAFKA_SERVER],
                     value_serializer=lambda x: json.dumps(x).encode("utf-8"),
                     compression_type="gzip",
                     api_version_auto_timeout_ms=5000,
@@ -87,7 +91,7 @@ class KafkaConsumerWrapper:
             try:
                 consumer = KafkaConsumer(
                     self.topic,
-                    bootstrap_servers=[BOOTSTRAP_SERVERS],
+                    bootstrap_servers=[KAFKA_SERVER],
                     group_id=self.group_id,
                     auto_offset_reset="earliest",
                     enable_auto_commit=True,
