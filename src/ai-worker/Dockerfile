@@ -22,8 +22,10 @@ COPY src/ai-worker .
 COPY src/common ./common
 
 # 환경변수 기본값 설정 (오버라이드 가능)
-ENV VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-ENV VLLM_GPU_MEMORY_UTILIZATION=0.85
+# RTX 4070 (12GB) 최적화: AWQ 4-bit 양자화
+ENV VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
+ENV VLLM_QUANTIZATION=awq
+ENV VLLM_GPU_MEMORY_UTILIZATION=0.90
 ENV VLLM_MAX_MODEL_LEN=4096
 
 CMD ["python3", "-u", "main.py"]

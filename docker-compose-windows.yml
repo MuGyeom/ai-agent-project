@@ -7,6 +7,7 @@ services:
       - .env
     volumes:
       - ./src:/app/src  # (선택) 코드 수정 시 바로 반영되게 마운트
+      - huggingface-cache:/root/.cache/huggingface  # 모델 캐시 영구 저장 (재빌드 시 재다운로드 방지)
     deploy:
       resources:
         reservations:
@@ -18,3 +19,10 @@ services:
     restart: on-failure
     stop_grace_period: 30s
     init: true
+
+# Named volumes for persistent storage
+volumes:
+  huggingface-cache:
+    # HuggingFace 모델 캐시용 영구 볼륨
+    # Windows 위치: Docker Desktop → Settings → Resources → Disk image location
+    # 약 20-30GB 디스크 공간 필요 (Qwen2.5-7B = ~15GB)

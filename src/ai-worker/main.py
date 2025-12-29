@@ -5,23 +5,29 @@ from common.utils import KafkaConsumerWrapper
 
 # vLLM 모델 초기화 (Global - 프로그램 시작 시 한 번만)
 print("🔧 Initializing vLLM Engine...")
-MODEL_NAME = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
-GPU_MEMORY_UTIL = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.85"))
+MODEL_NAME = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
+GPU_MEMORY_UTIL = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.90"))
 MAX_MODEL_LEN = int(os.getenv("VLLM_MAX_MODEL_LEN", "4096"))
+QUANTIZATION = os.getenv("VLLM_QUANTIZATION", "awq")  # AWQ 4-bit 양자화
 
 try:
     llm = LLM(
         model=MODEL_NAME,
+        quantization=QUANTIZATION,  # AWQ 양자화 활성화
         gpu_memory_utilization=GPU_MEMORY_UTIL,
         max_model_len=MAX_MODEL_LEN,
         trust_remote_code=True,  # Qwen 모델 사용 시 필요
+        dtype="half",  # FP16 사용
     )
     print(f"✅ vLLM Model Loaded: {MODEL_NAME}")
+    print(f"   Quantization: {QUANTIZATION.upper()}")
     print(f"   GPU Memory Utilization: {GPU_MEMORY_UTIL * 100}%")
     print(f"   Max Model Length: {MAX_MODEL_LEN} tokens")
 except Exception as e:
     print(f"❌ Failed to load vLLM model: {e}")
-    print("💡 Tip: Check GPU availability and CUDA installation")
+    print(f"💡 Model: {MODEL_NAME}")
+    print(f"💡 Quantization: {QUANTIZATION}")
+    print("💡 Tip: For RTX 4070 (12GB), use AWQ 4-bit quantized models")
     raise
 
 
