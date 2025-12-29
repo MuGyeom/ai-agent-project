@@ -36,6 +36,7 @@ services:
       - kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
     init: true #for terminate sig accept
     stop_grace_period: 30s
 
@@ -50,6 +51,7 @@ services:
       - kafka
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
     init: true
     stop_grace_period: 30s
 

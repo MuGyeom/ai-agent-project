@@ -1,12 +1,13 @@
 import os
+
+# CRITICAL: v0 API 강제 사용 - vLLM import 전에 환경변수 설정 필수!
+# vLLM은 import 시점에 v0/v1을 결정하므로 반드시 import 전에 설정해야 함
+os.environ["VLLM_USE_V1"] = "0"
+print("🔒 Forced VLLM_USE_V1=0 (before vLLM import)")
+
 from vllm import LLM, SamplingParams
 from common.config import settings
 from common.utils import KafkaConsumerWrapper
-
-# CRITICAL: v0 API 강제 사용 - 코드 레벨에서 환경변수 설정
-# 이렇게 하면 .env 파일이나 다른 설정에 관계없이 확실하게 적용됨
-os.environ["VLLM_USE_V1"] = "0"
-print("🔒 Forced VLLM_USE_V1=0 (v0 API)")
 
 # vLLM 모델 초기화 (Global - 프로그램 시작 시 한 번만)
 print("🔧 Initializing vLLM Engine...")
