@@ -3,12 +3,22 @@ from vllm import LLM, SamplingParams
 from common.config import settings
 from common.utils import KafkaConsumerWrapper
 
+# CRITICAL: v0 API 강제 사용 - 코드 레벨에서 환경변수 설정
+# 이렇게 하면 .env 파일이나 다른 설정에 관계없이 확실하게 적용됨
+os.environ["VLLM_USE_V1"] = "0"
+print("🔒 Forced VLLM_USE_V1=0 (v0 API)")
+
 # vLLM 모델 초기화 (Global - 프로그램 시작 시 한 번만)
 print("🔧 Initializing vLLM Engine...")
-MODEL_NAME = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
+MODEL_NAME = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-14B-Instruct-AWQ")
 GPU_MEMORY_UTIL = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.90"))
 MAX_MODEL_LEN = int(os.getenv("VLLM_MAX_MODEL_LEN", "4096"))
 QUANTIZATION = os.getenv("VLLM_QUANTIZATION", "awq")  # AWQ 4-bit 양자화
+
+# 환경변수 확인 (디버깅용)
+print(f"🔍 Environment Check:")
+print(f"   VLLM_USE_V1={os.getenv('VLLM_USE_V1')}")
+print(f"   Model: {MODEL_NAME}")
 
 try:
     llm = LLM(
@@ -27,7 +37,10 @@ except Exception as e:
     print(f"❌ Failed to load vLLM model: {e}")
     print(f"💡 Model: {MODEL_NAME}")
     print(f"💡 Quantization: {QUANTIZATION}")
+    print(f"💡 VLLM_USE_V1: {os.getenv('VLLM_USE_V1')}")
     print("💡 Tip: For RTX 4070 (12GB), use AWQ 4-bit quantized models")
+    import traceback
+    traceback.print_exc()
     raise
 
 
