@@ -56,7 +56,7 @@ def process_ai():
     sampling_params = SamplingParams(
         temperature=0.7,
         top_p=0.9,
-        max_tokens=1024,
+        max_tokens=1536,
     )
 
     for message in consumer.get_messages():
