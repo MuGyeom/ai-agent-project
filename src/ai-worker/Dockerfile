@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 
 # 시스템 업데이트 및 Python 3.11 설치
 RUN apt-get update && \

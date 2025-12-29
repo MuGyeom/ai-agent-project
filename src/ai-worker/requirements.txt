@@ -5,3 +5,4 @@ pydantic-settings
 # LLM Inference
 vllm
 torch
+torch-c-dlpack-ext  # DLPack C extension for zero-copy tensor sharing (performance optimization)
