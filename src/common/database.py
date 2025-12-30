@@ -66,6 +66,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def get_db():
     """Database session dependency"""
     db = SessionLocal()
+    print("postgreSQL connected!")
     try:
         yield db
     finally:
