@@ -2,3 +2,7 @@ fastapi
 uvicorn
 kafka-python
 pydantic-settings
+
+# Database
+sqlalchemy
+psycopg2-binary

@@ -46,6 +46,10 @@ except Exception as e:
 
 
 def process_ai():
+    from common.database import SessionLocal, Request, AnalysisResult
+    from datetime import datetime
+    import time as time_module
+    
     consumer = KafkaConsumerWrapper(
         topic=settings.KAFKA_TOPIC_AI, group_id=settings.KAFKA_GROUP_AI
     )
@@ -60,56 +64,98 @@ def process_ai():
     )
 
     for message in consumer.get_messages():
+        db = SessionLocal()
+        start_time = time_module.time()
         try:
             task = message.value
-            original_topic = task.get("original_topic")
-            context = task.get("context")
+            request_id = task.get("request_id")
+            topic = task.get("topic")
 
             print("\n" + "=" * 60)
-            print(f"📥 Topic: {original_topic}")
-            print(f"📄 Context Length: {len(context)} characters")
-            print("=" * 60)
+            print(f"📥 Request ID: {request_id}")
+            print(f"� Topic: {topic}")
 
-            # 프롬프트 생성
-            prompt = f"""You are a research assistant. Analyze the following web search results and provide a comprehensive summary.
+            # DB에서 검색 결과 조회
+            db_request = db.query(Request).filter(Request.id == request_id).first()
+            if not db_request:
+                print(f"❌ Request {request_id} not found in database")
+                continue
 
-Topic: {original_topic}
+            search_results = db_request.search_results
+            if not search_results:
+                print(f"❌ No search results found for request {request_id}")
+                db_request.status = "failed"
+                db_request.error_message = "No search results to analyze"
+                db.commit()
+                continue
 
-Search Results:
+            # 컨텍스트 구성
+            print(f"📚 Found {len(search_results)} search results")
+            context_parts = []
+            for idx, result in enumerate(search_results, 1):
+                context_parts.append(
+                    f"[결과 {idx}]\n"
+                    f"제목: {result.title}\n"
+                    f"URL: {result.url}\n"
+                    f"내용: {result.content}\n"
+                )
+            
+            context = "\n---\n".join(context_parts)
+            print(f"📄 Total Context Length: {len(context)} characters")
+
+            # 프롬프트 구성
+            prompt = f"""다음은 '{topic}'에 대한 검색 결과들입니다.
+이 정보들을 종합하여 한국어로 명확하고 상세한 요약을 작성해주세요.
+
 {context}
 
-Please provide:
-1. A concise summary of the key findings
-2. Main themes and insights
-3. Relevant conclusions
+위 검색 결과들을 바탕으로 '{topic}'에 대한 종합적인 요약을 작성해주세요:"""
 
-Summary:"""
-
-            # vLLM 추론 실행
-            print("🧠 Generating summary with vLLM...")
+            # LLM 추론
+            print("🧠 Analyzing with vLLM...")
             outputs = llm.generate([prompt], sampling_params)
             summary = outputs[0].outputs[0].text.strip()
-
-            # 결과 출력
-            print("\n" + "🎯 " + "=" * 58)
+            
+            inference_time_ms = int((time_module.time() - start_time) * 1000)
+            
+            print(f"✅ Analysis completed in {inference_time_ms}ms")
+            print(f"📊 Summary length: {len(summary)} characters")
+            print("\n" + "=" * 60)
             print("GENERATED SUMMARY:")
-            print("=" * 60)
+            print("-" * 60)
             print(summary)
-            print("=" * 60)
-            print(f"✅ Generated {len(summary)} characters\n")
+            print("=" * 60 + "\n")
 
-            # TODO: 추후 DB 저장 또는 Kafka 토픽으로 결과 전송
-            # producer.send_data(topic="results-queue", value={
-            #     "topic": original_topic,
-            #     "summary": summary,
-            #     "timestamp": time.time()
-            # })
+            # DB에 분석 결과 저장
+            analysis_result = AnalysisResult(
+                request_id=request_id,
+                summary=summary,
+                inference_time_ms=inference_time_ms
+            )
+            db.add(analysis_result)
+
+            # 요청 상태 업데이트: analyzing → completed
+            db_request.status = "completed"
+            db_request.completed_at = datetime.utcnow()
+            db.commit()
+
+            print(f"💾 Analysis result saved to database")
+            print(f"🎉 Request {request_id} completed!")
 
         except Exception as e:
-            print(f"❌ Error during inference: {e}")
+            print(f"❌ AI Worker Error: {e}")
             import traceback
-
             traceback.print_exc()
+            
+            # 에러 상태 저장
+            if 'request_id' in locals() and request_id:
+                db_request = db.query(Request).filter(Request.id == request_id).first()
+                if db_request:
+                    db_request.status = "failed"
+                    db_request.error_message = str(e)
+                    db.commit()
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

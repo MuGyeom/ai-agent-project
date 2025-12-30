@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # [AI]
     OPENAI_API_KEY: str | None = None
 
+    # [Database]
+    DATABASE_URL: str = "postgresql://agent:agent_password@postgres:5432/ai_agent"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

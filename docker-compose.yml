@@ -23,6 +23,25 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     stop_grace_period: 2m
 
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ai_agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d ai_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    stop_grace_period: 30s
+
   # 1. API 서버 (요청 접수)
   api-server:
     build: 
@@ -34,6 +53,7 @@ services:
       - "8000:8000"
     depends_on:
       - kafka
+      - postgres
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
@@ -49,22 +69,13 @@ services:
       - .env
     depends_on:
       - kafka
+      - postgres
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
     init: true
     stop_grace_period: 30s
 
-  # 3. AI 워커 (최종 단계 - 현재는 Mock)
-  #ai-worker:
-  #  build: 
-  #    context: .
-  #    dockerfile: src/ai-worker/Dockerfile
-  #  env_file:
-  #    - .env
-  #  depends_on:
-  #    - kafka
-  #  environment:
-  #    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #  init: true
-  #  stop_grace_period: 30s
+# Volumes for data persistence
+volumes:
+  postgres-data:  # PostgreSQL data persistence

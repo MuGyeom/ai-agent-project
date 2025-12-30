@@ -4,3 +4,7 @@ kafka-python
 pydantic-settings
 trafilatura
 duckduckgo-search
+
+# Database
+sqlalchemy
+psycopg2-binary
