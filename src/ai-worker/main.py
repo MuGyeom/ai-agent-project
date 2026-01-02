@@ -113,13 +113,34 @@ def process_ai():
             context = "\n---\n".join(context_parts)
             print(f"📄 Total Context Length: {len(context)} characters")
 
-            # 프롬프트 구성
-            prompt = f"""다음은 '{topic}'에 대한 검색 결과들입니다.
+            # 시스템 프롬프트 (LLM 행동 규칙)
+            system_prompt = """당신은 전문적인 정보 요약 AI 어시스턴트입니다.
 
+다음 규칙을 반드시 따라주세요:
+1. **한국어로만 답변**하세요.
+2. **검색 결과를 바탕으로만** 답변하고, 추측하지 마세요.
+3. **간결하고 명확하게** 핵심 내용만 요약하세요.
+4. **중복된 내용을 반복하지 마세요**.
+5. 답변은 **3-5개 문단** 이내로 작성하세요.
+6. 관련 없는 검색 결과는 무시하세요.
+7. 출처가 명확하지 않은 정보는 언급하지 마세요."""
+
+            # 사용자 프롬프트 (실제 요청)
+            user_prompt = f"""주제: {topic}
+
+검색 결과:
 {context}
 
-위 검색 결과들을 바탕으로 '{topic}'에 대한 종합적인 요약을 작성해주세요:"""
-            print(prompt)
+위 검색 결과들을 바탕으로 '{topic}'에 대해 요약해주세요."""
+
+            # 최종 프롬프트 (Qwen 형식)
+            prompt = f"""<|im_start|>system
+{system_prompt}<|im_end|>
+<|im_start|>user
+{user_prompt}<|im_end|>
+<|im_start|>assistant
+"""
+
             # LLM 추론
             print("🧠 Analyzing with vLLM...")
             outputs = llm.generate([prompt], sampling_params)
