@@ -81,12 +81,19 @@ def process_ai():
                 print(f"❌ Request {request_id} not found in database")
                 continue
 
+            # 🔒 Idempotency: 이미 완료된 요청은 스킵
+            if db_request.status == "completed":
+                print(f"⏭️ Request {request_id} already completed, skipping duplicate...")
+                consumer.consumer.commit()  # Offset만 커밋
+                continue
+
             search_results = db_request.search_results
             if not search_results:
                 print(f"❌ No search results found for request {request_id}")
                 db_request.status = "failed"
                 db_request.error_message = "No search results to analyze"
                 db.commit()
+                consumer.consumer.commit()  # Offset 커밋
                 continue
 
             # 컨텍스트 구성
@@ -99,18 +106,18 @@ def process_ai():
                     f"URL: {result.url}\n"
                     f"내용: {result.content}\n"
                 )
+                print(f"Result {idx}:", context_parts[idx])
             
             context = "\n---\n".join(context_parts)
             print(f"📄 Total Context Length: {len(context)} characters")
 
             # 프롬프트 구성
             prompt = f"""다음은 '{topic}'에 대한 검색 결과들입니다.
-이 정보들을 종합하여 한국어로 명확하고 상세한 요약을 작성해주세요.
 
 {context}
 
 위 검색 결과들을 바탕으로 '{topic}'에 대한 종합적인 요약을 작성해주세요:"""
-
+            print(prompt)
             # LLM 추론
             print("🧠 Analyzing with vLLM...")
             outputs = llm.generate([prompt], sampling_params)
@@ -138,8 +145,11 @@ def process_ai():
             db_request.status = "completed"
             db_request.completed_at = datetime.utcnow()
             db.commit()
-
             print(f"💾 Analysis result saved to database")
+
+            # ✅ Kafka offset 커밋 (DB 저장 성공 후)
+            consumer.consumer.commit()
+            print(f"📌 Kafka offset committed")
             print(f"🎉 Request {request_id} completed!")
 
         except Exception as e:

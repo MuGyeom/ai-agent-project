@@ -94,7 +94,7 @@ class KafkaConsumerWrapper:
                     bootstrap_servers=[KAFKA_SERVER],
                     group_id=self.group_id,
                     auto_offset_reset="earliest",
-                    enable_auto_commit=True,
+                    enable_auto_commit=False,  # 수동 커밋으로 변경 (중복 방지)
                     value_deserializer=lambda x: json.loads(x.decode("utf-8")),
                 )
                 print("✅ Kafka Consumer Connected!")
