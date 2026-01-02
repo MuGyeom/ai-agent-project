@@ -113,32 +113,34 @@ def process_ai():
             context = "\n---\n".join(context_parts)
             print(f"📄 Total Context Length: {len(context)} characters")
 
-            # 시스템 프롬프트 (LLM 행동 규칙)
-            system_prompt = """당신은 전문적인 정보 요약 AI 어시스턴트입니다.
+            # 시스템 프롬프트 (Llama 3.1 최적화)
+            system_prompt = """You are a professional information summarization assistant.
 
-다음 규칙을 반드시 따라주세요:
-1. **한국어로만 답변**하세요.
-2. **검색 결과를 바탕으로만** 답변하고, 추측하지 마세요.
-3. **간결하고 명확하게** 핵심 내용만 요약하세요.
-4. **중복된 내용을 반복하지 마세요**.
-5. 답변은 **3-5개 문단** 이내로 작성하세요.
-6. 관련 없는 검색 결과는 무시하세요.
-7. 출처가 명확하지 않은 정보는 언급하지 마세요."""
+CRITICAL RULES:
+1. Respond in Korean language ONLY (한국어로만 답변)
+2. Summarize based ONLY on the provided search results
+3. Be concise - use 3-5 paragraphs maximum
+4. Do NOT repeat content
+5. Ignore irrelevant results
+6. Do NOT mention sources explicitly unless critical
 
-            # 사용자 프롬프트 (실제 요청)
-            user_prompt = f"""주제: {topic}
+Your response must be entirely in Korean."""
 
-검색 결과:
+            # 사용자 프롬프트
+            user_prompt = f"""Topic: {topic}
+
+Search Results:
 {context}
 
-위 검색 결과들을 바탕으로 '{topic}'에 대해 요약해주세요."""
+Summarize the above search results about '{topic}' in Korean language."""
 
-            # 최종 프롬프트 (Qwen 형식)
-            prompt = f"""<|im_start|>system
-{system_prompt}<|im_end|>
-<|im_start|>user
-{user_prompt}<|im_end|>
-<|im_start|>assistant
+            # Llama 3.1 Chat Template
+            prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+{system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+{user_prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
 """
 
             # LLM 추론
