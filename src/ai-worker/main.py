@@ -61,6 +61,9 @@ def process_ai():
         temperature=0.7,
         top_p=0.9,
         max_tokens=1536,
+        repetition_penalty=1.1,      # 반복 방지 (1.0 = 없음, 1.1 = 약간, 1.5 = 강함)
+        frequency_penalty=0.2,        # 같은 토큰 반복 패널티
+        presence_penalty=0.0,         # 새로운 토픽 유도
     )
 
     for message in consumer.get_messages():
@@ -106,8 +109,7 @@ def process_ai():
                     f"URL: {result.url}\n"
                     f"내용: {result.content}\n"
                 )
-                print(f"Result {idx}:", context_parts[idx])
-            
+
             context = "\n---\n".join(context_parts)
             print(f"📄 Total Context Length: {len(context)} characters")
 
