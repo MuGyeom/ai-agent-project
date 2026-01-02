@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Requirements 설치
 COPY src/ai-worker/requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 # 소스 코드 복사
 COPY src/ai-worker .
