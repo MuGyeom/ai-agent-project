@@ -6,7 +6,7 @@ from common.utils import KafkaConsumerWrapper, KafkaProducerWrapper
 from common.database import SessionLocal, Request, SearchResult
 
 
-def search_and_crawl(topic, max_results=3):
+def search_and_crawl(topic, max_results=5):
     """
     1. DuckDuckGo 검색
     2. 상위 N개 URL 수집

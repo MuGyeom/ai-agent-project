@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 
 # 시스템 업데이트 및 Python 3.11 설치
@@ -13,9 +14,10 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 WORKDIR /app
 
-# Requirements 설치
+# Requirements 설치 (BuildKit cache mount)
 COPY src/ai-worker/requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install -r requirements.txt
 
 # 소스 코드 복사
 COPY src/ai-worker .
