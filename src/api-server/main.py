@@ -1,11 +1,25 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 from uuid import UUID
+from datetime import datetime, timedelta
+from typing import Optional
 from common.utils import KafkaProducerWrapper
-from common.database import get_db, Request
+from common.database import get_db, Request, SearchResult, AnalysisResult
 
-app = FastAPI()
+app = FastAPI(title="AI Agent API", version="1.0.0")
+
+# CORS 설정 (React 개발 서버용)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite/CRA 기본 포트
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 producer = KafkaProducerWrapper()
 
 
@@ -87,3 +101,123 @@ def get_status(request_id: UUID, db: Session = Depends(get_db)):
         result["inference_time_ms"] = db_request.analysis_result.inference_time_ms
     
     return result
+
+
+# ============ Dashboard API ============
+
+@app.get("/api/requests")
+def list_requests(
+    status: Optional[str] = None,
+    limit: int = Query(20, le=100),
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """요청 목록 조회 (페이지네이션 지원)"""
+    query = db.query(Request)
+    
+    if status and status != 'all':
+        query = query.filter(Request.status == status)
+    
+    total = query.count()
+    
+    requests = query.order_by(desc(Request.created_at))\
+                    .limit(limit)\
+                    .offset(offset)\
+                    .all()
+    
+    return {
+        "total": total,
+        "items": [
+            {
+                "request_id": str(r.id),
+                "topic": r.topic,
+                "status": r.status,
+                "created_at": r.created_at.isoformat(),
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                "error_message": r.error_message,
+                "search_results_count": len(r.search_results)
+            }
+            for r in requests
+        ]
+    }
+
+
+@app.get("/api/requests/{request_id}")
+def get_request_detail(
+    request_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """요청 상세 조회 (검색 결과 + AI 분석 포함)"""
+    request = db.query(Request).filter(Request.id == request_id).first()
+    if not request:
+        raise HTTPException(404, "Request not found")
+    
+    return {
+        "request": {
+            "request_id": str(request.id),
+            "topic": request.topic,
+            "status": request.status,
+            "created_at": request.created_at.isoformat(),
+            "updated_at": request.updated_at.isoformat(),
+            "completed_at": request.completed_at.isoformat() if request.completed_at else None,
+            "error_message": request.error_message
+        },
+        "search_results": [
+            {
+                "id": sr.id,
+                "url": sr.url,
+                "title": sr.title,
+                "content": sr.content,
+                "created_at": sr.created_at.isoformat()
+            }
+            for sr in request.search_results
+        ],
+        "analysis_result": {
+            "summary": request.analysis_result.summary,
+            "inference_time_ms": request.analysis_result.inference_time_ms,
+            "created_at": request.analysis_result.created_at.isoformat()
+        } if request.analysis_result else None
+    }
+
+
+@app.get("/api/metrics")
+def get_metrics(db: Session = Depends(get_db)):
+    """시스템 메트릭 조회"""
+    # 전체 요청 수
+    total = db.query(func.count(Request.id)).scalar()
+    
+    # 완료된 요청 수
+    completed = db.query(func.count(Request.id))\
+                  .filter(Request.status == 'completed')\
+                  .scalar()
+    
+    # 평균 추론 시간
+    avg_time = db.query(func.avg(AnalysisResult.inference_time_ms))\
+                 .scalar() or 0
+    
+    # 상태별 분포
+    status_dist = db.query(
+        Request.status,
+        func.count(Request.id)
+    ).group_by(Request.status).all()
+    
+    # 시간대별 요청 수 (최근 24시간)
+    since = datetime.utcnow() - timedelta(hours=24)
+    hourly = db.query(
+        func.date_trunc('hour', Request.created_at).label('hour'),
+        func.count(Request.id).label('count')
+    ).filter(Request.created_at >= since)\
+     .group_by('hour')\
+     .order_by('hour')\
+     .all()
+    
+    return {
+        "total_requests": total,
+        "success_rate": completed / total if total > 0 else 0,
+        "avg_inference_time_ms": int(avg_time),
+        "requests_by_status": {s: c for s, c in status_dist},
+        "requests_by_hour": [
+            {"hour": h.isoformat(), "count": c}
+            for h, c in hourly
+        ]
+    }

@@ -44,7 +44,7 @@ services:
 
   # 1. API 서버 (요청 접수)
   api-server:
-    build: 
+    build:
       context: .
       dockerfile: src/api-server/Dockerfile
     env_file:
@@ -52,17 +52,34 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - kafka
-      - postgres
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
-    init: true #for terminate sig accept
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: on-failure:3
+    init: true
     stop_grace_period: 30s
+
+  dashboard:
+    image: node:20-alpine
+    container_name: ai-agent-dashboard
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src/dashboard:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - api-server
+    networks:
+      - default
 
   # 2. 검색 워커 (중간 단계)
   search-worker:
-    build: 
+    build:
       context: .
       dockerfile: src/search-worker/Dockerfile
     env_file:
