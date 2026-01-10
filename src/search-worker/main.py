@@ -6,11 +6,11 @@ from common.utils import KafkaConsumerWrapper, KafkaProducerWrapper
 from common.database import SessionLocal, Request, SearchResult
 
 
-def search_and_crawl(topic, max_results=5):
+def search_and_crawl(topic, max_results=8):
     """
     1. DuckDuckGo 검색
     2. 상위 N개 URL 수집
-    3. 본문 크롤링
+    3. 본문 크롤링 (개선된 trafilatura 설정)
     4. 결과를 리스트로 반환 (DB 저장용)
     """
     print(f"🔍 Searching for: {topic}")
@@ -26,31 +26,54 @@ def search_and_crawl(topic, max_results=5):
             title = result["title"]
             print(f"   👉 Found: {title} ({url})")
 
-            # 2. 본문 크롤링 (trafilatura)
-            downloaded = trafilatura.fetch_url(url)
-            content = ""
-            if downloaded:
-                text = trafilatura.extract(downloaded)
-                if text:
-                    content = text[:2000]  # 2000자 제한
+            # 2. 본문 크롤링 (trafilatura 고급 설정)
+            try:
+                downloaded = trafilatura.fetch_url(url)
+                content = ""
+                
+                if downloaded:
+                    # 개선된 추출 설정
+                    text = trafilatura.extract(
+                        downloaded,
+                        include_comments=False,      # 댓글 제외
+                        include_tables=True,          # 표 포함
+                        no_fallback=False,            # fallback 허용 (더 많은 콘텐츠)
+                        favor_precision=False,        # recall 우선 (더 많은 텍스트)
+                        favor_recall=True,
+                        deduplicate=True,             # 중복 제거
+                        target_language="ko",         # 한국어 우선
+                    )
+                    
+                    if text and len(text.strip()) > 100:  # 최소 100자 이상
+                        # 더 긴 본문 허용 (8000자까지)
+                        content = text.strip()[:8000]
+                        print(f"      ✅ Extracted {len(content)} characters")
+                    else:
+                        print(f"      ⚠️ Content too short ({len(text) if text else 0} chars)")
                 else:
-                    print(f"      ⚠️ No content extracted from {url}")
-            else:
-                print(f"      ⚠️ Failed to fetch {url}")
+                    print(f"      ⚠️ Failed to fetch {url}")
+                    
+            except Exception as e:
+                print(f"      ❌ Crawl error for {url}: {e}")
+                content = ""
 
-            # 결과 저장 (DB 저장용)
+            # 결과 저장 (빈 내용이라도 저장 - 제목/URL은 유용)
             results.append({
                 "url": url,
                 "title": title,
                 "content": content
             })
 
-            time.sleep(1)  # 차단 방지를 위한 예의바른 대기
+            time.sleep(1)  # 차단 방지
 
     except Exception as e:
         print(f"❌ Search Error: {e}")
 
-    return results
+    # 유효한 콘텐츠가 있는 결과만 반환
+    valid_results = [r for r in results if r["content"]]
+    print(f"📊 Total: {len(results)} results, Valid: {len(valid_results)} with content")
+    
+    return valid_results if valid_results else results[:3]  # 최소 3개는 반환
 
 
 def process_search():
@@ -68,19 +91,53 @@ def process_search():
             request_id = task.get("request_id")
             topic = task.get("topic")
 
-            print(f"📥 Received request {request_id}: {topic}")
+            print(f"\n{'='*60}")
+            print(f"Received request: {request_id} : {topic}")
 
-            # 검색 및 크롤링 수행
-            search_results_data = search_and_crawl(topic)
+            # 🔒 Pessimistic Lock: Row-level locking
+            # SELECT FOR UPDATE SKIP LOCKED prevents race conditions
+            from sqlalchemy import text
+            
+            # Try to acquire exclusive lock on this request
+            lock_query = text("""
+                SELECT id, status 
+                FROM requests 
+                WHERE id = :request_id 
+                AND status = 'searching'
+                FOR UPDATE SKIP LOCKED
+            """)
+            
+            result = db.execute(lock_query, {"request_id": request_id}).fetchone()
+            
+            if not result:
+                # Either already locked by another worker, or status != 'searching'
+                existing = db.query(Request).filter(Request.id == request_id).first()
+                if existing:
+                    if existing.status == 'searching':
+                        print(f"🔒 Request {request_id} locked by another worker, skipping")
+                    else:
+                        print(f"⏭️  Request {request_id} already processed (status: {existing.status})")
+                else:
+                    print(f"❌ Request {request_id} not found")
+                consumer.consumer.commit()
+                continue
+
+            # We successfully acquired the lock! Update status immediately
+            db_request = db.query(Request).filter(Request.id == request_id).first()
+            db_request.status = 'processing_search'
+            db.commit()
+            print(f"✅ Locked and claimed request {request_id}")
+
+            # 검색 수행
+            search_results_data = search_and_crawl(topic, max_results=8)
 
             if not search_results_data:
-                print(f"⚠️ No search results found for {topic}")
+                print(f"⚠️  No search results for {topic}")
                 # 상태를 failed로 업데이트
-                db_request = db.query(Request).filter(Request.id == request_id).first()
-                if db_request:
-                    db_request.status = "failed"
-                    db_request.error_message = "No search results found"
-                    db.commit()
+                db_request.status = "failed"
+                db_request.error_message = "No search results found"
+                db.commit()
+                consumer.consumer.commit()
                 continue
 
             # DB에 검색 결과 저장
@@ -96,19 +153,22 @@ def process_search():
             db.commit()
             print(f"💾 Saved {len(search_results_data)} search results to DB")
 
-            # 요청 상태 업데이트: searching → analyzing
-            db_request = db.query(Request).filter(Request.id == request_id).first()
-            if db_request:
-                db_request.status = "analyzing"
-                db.commit()
-                print(f"🔄 Status updated to 'analyzing' for request {request_id}")
+            # 요청 상태 업데이트: processing_search → analyzing
+            db_request.status = "analyzing"
+            db.commit()
 
-            # AI Worker로 전송 (request_id만 전송 - AI Worker가 DB에서 읽을 것)
+            # AI Worker에 분석 요청 전달
             producer.send_data(
                 topic=settings.KAFKA_TOPIC_AI,
-                value={"request_id": request_id, "topic": topic}
+                value={
+                    "request_id": request_id,
+                    "topic": topic
+                }
             )
-            print(f"✅ [Forwarded] Sent to AI Worker for analysis")
+            
+            # Kafka offset 커밋
+            consumer.consumer.commit()
+            print(f"✅ Request {request_id} handed off to AI worker")
 
         except Exception as e:
             print(f"❌ Worker Error: {e}")

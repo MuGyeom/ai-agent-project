@@ -6,7 +6,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE requests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     topic TEXT NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, searching, analyzing, completed, failed
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',  
+    -- pending, searching, processing_search, analyzing, processing_analysis, completed, failed
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     completed_at TIMESTAMP,
