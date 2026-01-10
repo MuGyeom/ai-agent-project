@@ -7,17 +7,21 @@ RUN apt-get update && \
     python3.11 \
     python3-pip \
     python3.11-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # python3를 python3.11로 링크
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /app
 
 # Requirements 설치 (BuildKit cache mount)
 COPY src/ai-worker/requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip3 install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r requirements.txt
 
 # 소스 코드 복사
 COPY src/ai-worker .
