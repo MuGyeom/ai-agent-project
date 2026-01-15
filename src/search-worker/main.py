@@ -8,15 +8,15 @@ from common.database import SessionLocal, Request, SearchResult
 
 def search_and_crawl(topic, max_results=8):
     """
-    1. DuckDuckGo 검색
-    2. 상위 N개 URL 수집
-    3. 본문 크롤링 (개선된 trafilatura 설정)
-    4. 결과를 리스트로 반환 (DB 저장용)
+    1. Search using configured search engine (DuckDuckGo or SearXNG)
+    2. Collect top N URLs
+    3. Crawl content (with improved trafilatura settings)
+    4. Return results as list (for DB storage)
     """
     print(f"🔍 Searching for: {topic}")
     results = []
 
-    # 1. 검색 수행
+    # 1. Perform search
     try:
         with DDGS() as ddgs:
             search_results = list(ddgs.text(topic, max_results=max_results))
@@ -26,26 +26,26 @@ def search_and_crawl(topic, max_results=8):
             title = result["title"]
             print(f"   👉 Found: {title} ({url})")
 
-            # 2. 본문 크롤링 (trafilatura 고급 설정)
+            # 2. Crawl content (advanced trafilatura settings)
             try:
                 downloaded = trafilatura.fetch_url(url)
                 content = ""
                 
                 if downloaded:
-                    # 개선된 추출 설정
+                    # Improved extraction settings
                     text = trafilatura.extract(
                         downloaded,
-                        include_comments=False,      # 댓글 제외
-                        include_tables=True,          # 표 포함
-                        no_fallback=False,            # fallback 허용 (더 많은 콘텐츠)
-                        favor_precision=False,        # recall 우선 (더 많은 텍스트)
+                        include_comments=False,      # Exclude comments
+                        include_tables=True,          # Include tables
+                        no_fallback=False,            # Allow fallback (more content)
+                        favor_precision=False,        # Favor recall (more text)
                         favor_recall=True,
-                        deduplicate=True,             # 중복 제거
-                        target_language="ko",         # 한국어 우선
+                        deduplicate=True,             # Remove duplicates
+                        target_language="ko",         # Prefer Korean
                     )
                     
-                    if text and len(text.strip()) > 100:  # 최소 100자 이상
-                        # 더 긴 본문 허용 (8000자까지)
+                    if text and len(text.strip()) > 100:  # Minimum 100 chars
+                        # Allow longer content (up to 8000 chars)
                         content = text.strip()[:8000]
                         print(f"      ✅ Extracted {len(content)} characters")
                     else:
@@ -57,23 +57,23 @@ def search_and_crawl(topic, max_results=8):
                 print(f"      ❌ Crawl error for {url}: {e}")
                 content = ""
 
-            # 결과 저장 (빈 내용이라도 저장 - 제목/URL은 유용)
+            # Save result (save even if content is empty - title/URL are useful)
             results.append({
                 "url": url,
                 "title": title,
                 "content": content
             })
 
-            time.sleep(1)  # 차단 방지
+            time.sleep(1)  # Prevent blocking
 
     except Exception as e:
         print(f"❌ Search Error: {e}")
 
-    # 유효한 콘텐츠가 있는 결과만 반환
+    # Return only results with valid content
     valid_results = [r for r in results if r["content"]]
     print(f"📊 Total: {len(results)} results, Valid: {len(valid_results)} with content")
     
-    return valid_results if valid_results else results[:3]  # 최소 3개는 반환
+    return valid_results if valid_results else results[:3]  # Return at least 3
 
 
 def process_search():
@@ -128,19 +128,19 @@ def process_search():
             db.commit()
             print(f"✅ Locked and claimed request {request_id}")
 
-            # 검색 수행
+            # Perform search
             search_results_data = search_and_crawl(topic, max_results=8)
 
             if not search_results_data:
                 print(f"⚠️  No search results for {topic}")
-                # 상태를 failed로 업데이트
+                # Update status to failed
                 db_request.status = "failed"
                 db_request.error_message = "No search results found"
                 db.commit()
                 consumer.consumer.commit()
                 continue
 
-            # DB에 검색 결과 저장
+            # Save search results to DB
             for result_data in search_results_data:
                 search_result = SearchResult(
                     request_id=request_id,
@@ -153,11 +153,11 @@ def process_search():
             db.commit()
             print(f"💾 Saved {len(search_results_data)} search results to DB")
 
-            # 요청 상태 업데이트: processing_search → analyzing
+            # Update request status: processing_search → analyzing
             db_request.status = "analyzing"
             db.commit()
 
-            # AI Worker에 분석 요청 전달
+            # Send analysis request to AI Worker
             producer.send_data(
                 topic=settings.KAFKA_TOPIC_AI,
                 value={
@@ -166,13 +166,13 @@ def process_search():
                 }
             )
             
-            # Kafka offset 커밋
+            # Commit Kafka offset
             consumer.consumer.commit()
             print(f"✅ Request {request_id} handed off to AI worker")
 
         except Exception as e:
             print(f"❌ Worker Error: {e}")
-            # 에러 상태 저장
+            # Save error status
             if 'request_id' in locals() and request_id:
                 db_request = db.query(Request).filter(Request.id == request_id).first()
                 if db_request:

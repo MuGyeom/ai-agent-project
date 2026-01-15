@@ -2,8 +2,8 @@ import os
 from datetime import datetime
 import time as time_module
 
-# CRITICAL: v0 API 강제 사용 - vLLM import 전에 환경변수 설정 필수!
-# vLLM은 import 시점에 v0/v1을 결정하므로 반드시 import 전에 설정해야 함
+# CRITICAL: Force v0 API - Must set env var BEFORE importing vLLM!
+# vLLM decides v0/v1 at import time, so this must be set before import
 os.environ["VLLM_USE_V1"] = "0"
 print("🔒 Forced VLLM_USE_V1=0 (before vLLM import)")
 
@@ -13,14 +13,14 @@ from common.config import settings
 from common.utils import KafkaConsumerWrapper
 from common.database import SessionLocal, Request, AnalysisResult, SearchResult
 
-# vLLM 모델 초기화 (Global - 프로그램 시작 시 한 번만)
+# Initialize vLLM model (Global - only once at program start)
 print("🔧 Initializing vLLM Engine...")
 MODEL_NAME = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-14B-Instruct-AWQ")
 GPU_MEMORY_UTIL = float(os.getenv("VLLM_GPU_MEMORY_UTILIZATION", "0.90"))
 MAX_MODEL_LEN = int(os.getenv("VLLM_MAX_MODEL_LEN", "4096"))
-QUANTIZATION = os.getenv("VLLM_QUANTIZATION", "awq")  # AWQ 4-bit 양자화
+QUANTIZATION = os.getenv("VLLM_QUANTIZATION", "awq")  # AWQ 4-bit Quantization
 
-# 환경변수 확인 (디버깅용)
+# Environment check (for debugging)
 print(f"🔍 Environment Check:")
 print(f"   VLLM_USE_V1={os.getenv('VLLM_USE_V1')}")
 print(f"   Model: {MODEL_NAME}")
@@ -28,11 +28,11 @@ print(f"   Model: {MODEL_NAME}")
 try:
     llm = LLM(
         model=MODEL_NAME,
-        quantization=QUANTIZATION,  # AWQ 양자화 활성화
+        quantization=QUANTIZATION,  # Enable AWQ quantization
         gpu_memory_utilization=GPU_MEMORY_UTIL,
         max_model_len=MAX_MODEL_LEN,
-        trust_remote_code=True,  # Qwen 모델 사용 시 필요
-        dtype="half",  # FP16 사용
+        trust_remote_code=True,  # Required for Qwen models
+        dtype="half",  # Use FP16
     )
     print(f"✅ vLLM Model Loaded: {MODEL_NAME}")
     print(f"   Quantization: {QUANTIZATION.upper()}")

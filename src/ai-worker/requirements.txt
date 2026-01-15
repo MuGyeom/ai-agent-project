@@ -3,7 +3,7 @@ kafka-python
 pydantic-settings
 
 # LLM Inference
-vllm==0.6.3  # Pinned to 0.6.3 (stable v0 API, v1 버그 없음)
+vllm==0.6.3  # Pinned to 0.6.3 (stable v0 API, no v1 bugs)
 torch
 torch-c-dlpack-ext  # DLPack C extension for zero-copy tensor sharing (performance optimization)
 

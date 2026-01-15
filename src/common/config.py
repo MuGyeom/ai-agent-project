@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore",  # 정의되지 않은 환경변수가 있어도 에러 내지 않음
+        extra="ignore",  # Ignore undefined environment variables
     )
 
 
-# 인스턴스 생성 (이걸 import 해서 씀)
+# Create singleton instance (import this to use)
 settings = Settings()

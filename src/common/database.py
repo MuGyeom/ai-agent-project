@@ -8,7 +8,7 @@ from common.config import settings
 
 Base = declarative_base()
 
-# Request 모델: 전체 요청 lifecycle 관리
+# Request model: Manages the entire request lifecycle
 class Request(Base):
     __tablename__ = 'requests'
     
@@ -24,7 +24,7 @@ class Request(Base):
     search_results = relationship("SearchResult", back_populates="request", cascade="all, delete-orphan")
     analysis_result = relationship("AnalysisResult", back_populates="request", uselist=False, cascade="all, delete-orphan")
 
-# SearchResult 모델: 검색 결과 저장
+# SearchResult model: Stores search results
 class SearchResult(Base):
     __tablename__ = 'search_results'
     
@@ -38,7 +38,7 @@ class SearchResult(Base):
     # Relationship
     request = relationship("Request", back_populates="search_results")
 
-# AnalysisResult 모델: AI 분석 결과 저장
+# AnalysisResult model: Stores AI analysis results
 class AnalysisResult(Base):
     __tablename__ = 'analysis_results'
     
@@ -52,10 +52,10 @@ class AnalysisResult(Base):
     # Relationship
     request = relationship("Request", back_populates="analysis_result")
 
-# Database 연결 설정
+# Database connection setup
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,  # 연결 유효성 검사
+    pool_pre_ping=True,  # Validate connection before use
     pool_size=5,
     max_overflow=10
 )

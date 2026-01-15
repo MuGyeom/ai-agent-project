@@ -4,7 +4,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    stop_grace_period: 1m # 무거운 컨테이너 종료 대기
+    stop_grace_period: 1m # Wait for heavy container to stop
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -16,7 +16,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      # 통신 시 컨테이너끼리는 내부 주소 kafka:29092, 호스트에서는 tailscale IP:9092 사용
+      # Container-to-container: kafka:29092, Host access: use Tailscale IP:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://100.113.118.32:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -37,7 +37,7 @@ services:
       POSTGRES_USER: agent
       POSTGRES_PASSWORD: agent_password
     ports:
-      - "0.0.0.0:5432:5432"  # 모든 인터페이스에서 접속 허용 (Tailscale 포함)
+      - "0.0.0.0:5432:5432"  # Allow connections from all interfaces (including Tailscale)
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -48,7 +48,7 @@ services:
       retries: 5
     stop_grace_period: 30s
 
-  # 1. API 서버 (요청 접수)
+  # 1. API Server (Request handler)
   api-server:
     build:
       context: .
@@ -82,7 +82,7 @@ services:
     networks:
       - default
 
-  # 2. 검색 워커 (중간 단계)
+  # 2. Search Worker (Intermediate stage)
   search-worker:
     build:
       context: .
@@ -94,7 +94,7 @@ services:
       - postgres
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
+    restart: on-failure:3  # Restart up to 3 times on failure
     init: true
     stop_grace_period: 30s
 

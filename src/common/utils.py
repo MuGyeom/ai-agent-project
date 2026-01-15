@@ -5,7 +5,7 @@ from common.config import settings
 KAFKA_SERVER = (
     settings.KAFKA_BROKER if settings.KAFKA_BROKER else settings.KAFKA_BOOTSTRAP_SERVERS
 )
-# 디버깅을 위해 현재 사용 중인 주소 출력
+# Print current Kafka broker address for debugging
 print(f"🔗 [Utils] Connecting to Kafka Brokers: {KAFKA_SERVER}")
 
 
@@ -42,27 +42,27 @@ class KafkaProducerWrapper:
 
     def send_data(self, topic, value, callback=None):
         """
-        어떤 토픽이든, 어떤 데이터든 보낼 수 있게 일반화함
+        Generic method to send any data to any topic
         """
         future = self.producer.send(topic, value=value)
         if callback:
             future.add_callback(callback)
         future.add_errback(self._on_error)
-        # flush는 매번 호출하면 느려지므로 필요할 때만 호출하거나 배치 처리가 좋음
+        # Avoid calling flush on every send for performance; use batch processing instead
 
     def _on_error(self, exc):
         print(f"❌ Failed to send: {exc}")
 
     def get_messages(self):
-        """메시지를 하나씩 반환하는 제너레이터 (Graceful Exit 추가)"""
-        # 종료 신호가 오면 이 변수를 True로 바꿈
+        """Generator that yields messages one by one (with graceful exit)"""
+        # Set to True when shutdown signal is received
         self._stop_event = False
 
         def signal_handler(sig, frame):
             print(f"\n🛑 Received signal {sig}. Stopping producer loop...")
             self._stop_event = True
 
-        # SIGINT(Ctrl+C)와 SIGTERM(Docker Stop)을 감지
+        # Catch SIGINT (Ctrl+C) and SIGTERM (Docker stop)
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
@@ -78,7 +78,7 @@ class KafkaProducerWrapper:
 class KafkaConsumerWrapper:
     def __init__(self, topic, group_id, max_retries=10, initial_delay=2):
         """
-        토픽과 그룹 ID를 인자로 받아서 재사용성 극대화
+        Initialize consumer with topic and group_id for maximum reusability
         """
         print(f"🔧 Initializing Kafka Consumer (Group: {group_id}, Topic: {topic})...")
         self.topic = topic
@@ -94,7 +94,7 @@ class KafkaConsumerWrapper:
                     bootstrap_servers=[KAFKA_SERVER],
                     group_id=self.group_id,
                     auto_offset_reset="earliest",
-                    enable_auto_commit=False,  # 수동 커밋으로 변경 (중복 방지)
+                    enable_auto_commit=False,  # Manual commit to prevent duplicate analysis
                     value_deserializer=lambda x: json.loads(x.decode("utf-8")),
                 )
                 print("✅ Kafka Consumer Connected!")
@@ -114,15 +114,15 @@ class KafkaConsumerWrapper:
         sys.exit(1)
 
     def get_messages(self):
-        """메시지를 하나씩 반환하는 제너레이터 (Graceful Exit 추가)"""
-        # 종료 신호가 오면 이 변수를 True로 바꿈
+        """Generator that yields messages one by one (with graceful exit)"""
+        # Set to True when shutdown signal is received
         self._stop_event = False
 
         def signal_handler(sig, frame):
             print(f"\n🛑 Received signal {sig}. Stopping consumer loop...")
             self._stop_event = True
 
-        # SIGINT(Ctrl+C)와 SIGTERM(Docker Stop)을 감지
+        # Catch SIGINT (Ctrl+C) and SIGTERM (Docker stop)
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 

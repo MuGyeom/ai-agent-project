@@ -11,10 +11,10 @@ from common.database import get_db, Request, SearchResult, AnalysisResult
 
 app = FastAPI(title="AI Agent API", version="1.0.0")
 
-# CORS 설정 (React 개발 서버용)
+# CORS settings (for React dev server)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite/CRA 기본 포트
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite/CRA default ports
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,12 +31,12 @@ class AnalyzeRequest(BaseModel):
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)):
     """
-    분석 요청 생성 및 파이프라인 시작
-    1. DB에 요청 저장 (pending 상태)
-    2. Kafka에 검색 작업 발행
-    3. 상태를 searching으로 업데이트
+    Create analysis request and start pipeline
+    1. Save request to DB (pending status)
+    2. Publish search task to Kafka
+    3. Update status to searching
     """
-    # 1. DB에 요청 생성
+    # 1. Create request in DB
     db_request = Request(topic=req.topic, status="pending")
     db.add(db_request)
     db.commit()
@@ -45,13 +45,13 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)):
     request_id = str(db_request.id)
     print(f"📝 Created request {request_id} for topic: {req.topic}")
     
-    # 2. Kafka에 검색 작업 발행 (request_id 포함)
+    # 2. Publish search task to Kafka (with request_id)
     producer.send_data(
         topic="search-queue",
         value={"request_id": request_id, "topic": req.topic}
     )
     
-    # 3. 상태 업데이트
+    # 3. Update status
     db_request.status = "searching"
     db.commit()
     print(f"🔍 Status updated to 'searching' for request {request_id}")
@@ -66,16 +66,16 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)):
 @app.get("/status/{request_id}")
 def get_status(request_id: UUID, db: Session = Depends(get_db)):
     """
-    요청 상태 조회
-    - request_id로 전체 파이프라인 진행상황 확인
-    - 검색 결과 개수, 분석 완료 여부 포함
+    Get request status
+    - Check pipeline progress by request_id
+    - Includes search results count and analysis completion status
     """
     db_request = db.query(Request).filter(Request.id == request_id).first()
     
     if not db_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    # 기본 정보
+    # Basic info
     result = {
         "request_id": str(db_request.id),
         "topic": db_request.topic,
@@ -84,18 +84,18 @@ def get_status(request_id: UUID, db: Session = Depends(get_db)):
         "updated_at": db_request.updated_at.isoformat(),
     }
     
-    # 완료 시간 (있으면)
+    # Completion time (if exists)
     if db_request.completed_at:
         result["completed_at"] = db_request.completed_at.isoformat()
     
-    # 에러 메시지 (있으면)
+    # Error message (if exists)
     if db_request.error_message:
         result["error"] = db_request.error_message
     
-    # 검색 결과 개수
+    # Search results count
     result["search_results_count"] = len(db_request.search_results)
     
-    # 분석 결과 (완료 시)
+    # Analysis result (if completed)
     if db_request.analysis_result:
         result["summary"] = db_request.analysis_result.summary
         result["inference_time_ms"] = db_request.analysis_result.inference_time_ms
@@ -112,7 +112,7 @@ def list_requests(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """요청 목록 조회 (페이지네이션 지원)"""
+    """List requests (with pagination)"""
     query = db.query(Request)
     
     if status and status != 'all':
@@ -147,7 +147,7 @@ def get_request_detail(
     request_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """요청 상세 조회 (검색 결과 + AI 분석 포함)"""
+    """Get request details (including search results + AI analysis)"""
     request = db.query(Request).filter(Request.id == request_id).first()
     if not request:
         raise HTTPException(404, "Request not found")
@@ -182,26 +182,26 @@ def get_request_detail(
 
 @app.get("/api/metrics")
 def get_metrics(db: Session = Depends(get_db)):
-    """시스템 메트릭 조회"""
-    # 전체 요청 수
+    """Get system metrics"""
+    # Total requests count
     total = db.query(func.count(Request.id)).scalar()
     
-    # 완료된 요청 수
+    # Completed requests count
     completed = db.query(func.count(Request.id))\
                   .filter(Request.status == 'completed')\
                   .scalar()
     
-    # 평균 추론 시간
+    # Average inference time
     avg_time = db.query(func.avg(AnalysisResult.inference_time_ms))\
                  .scalar() or 0
     
-    # 상태별 분포
+    # Status distribution
     status_dist = db.query(
         Request.status,
         func.count(Request.id)
     ).group_by(Request.status).all()
     
-    # 시간대별 요청 수 (최근 24시간)
+    # Requests by hour (last 24 hours)
     since = datetime.utcnow() - timedelta(hours=24)
     hourly = db.query(
         func.date_trunc('hour', Request.created_at).label('hour'),
