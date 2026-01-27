@@ -4,6 +4,7 @@ kafka-python
 pydantic-settings
 trafilatura
 duckduckgo-search
+requests  # For SearXNG API
 
 # Database
 sqlalchemy

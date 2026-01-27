@@ -1,0 +1,59 @@
+# SearXNG Settings
+# See https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "AI Agent Search"
+  contact_url: false
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "auto"
+  formats:
+    - html
+    - json  # Required for API access
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "ultrasecretkey"  # Change this in production!
+  limiter: false  # Disable rate limiting for local use
+  image_proxy: true
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  theme_args:
+    simple_style: auto
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  useragent_suffix: ""
+  pool_connections: 100
+  pool_maxsize: 20
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+  
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: w
+    disabled: false

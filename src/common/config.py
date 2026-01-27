@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     KAFKA_GROUP_AI: str = "ai-group"
 
     # [Search]
+    SEARCH_ENGINE: str = "duckduckgo"  # 'searxng' or 'duckduckgo'
+    SEARXNG_URL: str | None = None  # e.g., http://localhost:8080
     SEARCH_ENGINE_API_KEY: str | None = None
 
     # [AI]

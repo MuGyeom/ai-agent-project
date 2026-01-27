@@ -1,9 +1,9 @@
 import time
 import trafilatura
-from duckduckgo_search import DDGS
 from common.config import settings
 from common.utils import KafkaConsumerWrapper, KafkaProducerWrapper
 from common.database import SessionLocal, Request, SearchResult
+from common.search_engine import get_search_engine
 
 
 def search_and_crawl(topic, max_results=8):
@@ -16,13 +16,15 @@ def search_and_crawl(topic, max_results=8):
     print(f"🔍 Searching for: {topic}")
     results = []
 
+    # Get configured search engine
+    search_engine = get_search_engine()
+    
     # 1. Perform search
     try:
-        with DDGS() as ddgs:
-            search_results = list(ddgs.text(topic, max_results=max_results))
+        search_results = search_engine.search(topic, max_results=max_results)
 
         for result in search_results:
-            url = result["href"]
+            url = result["url"]
             title = result["title"]
             print(f"   👉 Found: {title} ({url})")
 
@@ -82,7 +84,12 @@ def process_search():
     )
     producer = KafkaProducerWrapper()
 
-    print(f"🚀 [Search Worker] Ready using DuckDuckGo...")
+    # Show which search engine is being used
+    engine_name = settings.SEARCH_ENGINE.upper()
+    if settings.SEARCH_ENGINE.lower() == "searxng" and settings.SEARXNG_URL:
+        print(f"🚀 [Search Worker] Ready using SearXNG ({settings.SEARXNG_URL})...")
+    else:
+        print(f"🚀 [Search Worker] Ready using DuckDuckGo...")
 
     for message in consumer.get_messages():
         db = SessionLocal()

@@ -36,3 +36,4 @@ duckduckgo-search>=4.0.0
 pytest>=7.0.0
 black>=23.0.0
 isort>=5.0.0
+httpx>=0.24.0  # For FastAPI TestClient

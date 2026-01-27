@@ -52,7 +52,7 @@ services:
   api-server:
     build:
       context: .
-      dockerfile: src/api-server/Dockerfile
+      dockerfile: src/api_server/Dockerfile
     env_file:
       - .env
     ports:
@@ -86,7 +86,7 @@ services:
   search-worker:
     build:
       context: .
-      dockerfile: src/search-worker/Dockerfile
+      dockerfile: src/search_worker/Dockerfile
     env_file:
       - .env
     depends_on:
@@ -97,6 +97,25 @@ services:
     restart: on-failure:3  # Restart up to 3 times on failure
     init: true
     stop_grace_period: 30s
+
+  # SearXNG - Privacy-respecting metasearch engine (optional)
+  # Enable by setting SEARCH_ENGINE=searxng in .env
+  searxng:
+    image: searxng/searxng:latest
+    profiles:
+      - searxng  # Only starts with: docker compose --profile searxng up
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
 
 # Volumes for data persistence
 volumes:
