@@ -152,17 +152,36 @@ def analyze_search_results(request_id, topic, db, llm):
     
     # Build context from search results
     print(f"📚 Found {len(search_results)} search results")
+    
+    # Token limit settings
+    # Reserve tokens: system prompt (~200) + user prompt template (~100) + output (~1536) + buffer (~500)
+    # MAX_MODEL_LEN is typically 4096-8192, so we allow ~2000-5000 tokens for context
+    MAX_CONTEXT_CHARS = (MAX_MODEL_LEN - 2500) * 3  # ~3 chars per token approximation
+    
     context_parts = []
+    total_chars = 0
+    
     for idx, result in enumerate(search_results, 1):
-        context_parts.append(
+        # Truncate individual content if too long
+        content = result.content[:2000] if result.content else ""
+        
+        part = (
             f"[결과 {idx}]\n"
             f"제목: {result.title}\n"
             f"URL: {result.url}\n"
-            f"내용: {result.content}\n"
+            f"내용: {content}\n"
         )
+        
+        # Check if adding this part would exceed limit
+        if total_chars + len(part) > MAX_CONTEXT_CHARS:
+            print(f"⚠️  Context limit reached at result {idx}, truncating...")
+            break
+        
+        context_parts.append(part)
+        total_chars += len(part)
 
     context = "\n---\n".join(context_parts)
-    print(f"📄 Total Context Length: {len(context)} characters")
+    print(f"📄 Total Context Length: {len(context)} characters (~{len(context)//3} tokens)")
 
     # System prompt for analysis
     system_prompt = """You are a professional information summarization assistant.

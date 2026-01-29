@@ -20,7 +20,7 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "ultrasecretkey"  # Change this in production!
+  secret_key: "ai-agent-searxng-2026-random-key-x9k2m"  # Changed from default
   limiter: false  # Disable rate limiting for local use
   image_proxy: true
 
