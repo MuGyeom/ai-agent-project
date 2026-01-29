@@ -54,8 +54,9 @@ try:
         quantization=QUANTIZATION,  # Enable AWQ quantization
         gpu_memory_utilization=GPU_MEMORY_UTIL,
         max_model_len=MAX_MODEL_LEN,
-        trust_remote_code=True,  # Required for Qwen models
+        trust_remote_code=True,  # Required for some models
         dtype="half",  # Use FP16
+        enforce_eager=True,  # Disable CUDA graph (fixes RoPE scaling issues)
     )
     print(f"✅ vLLM Model Loaded: {MODEL_NAME}")
     print(f"   Quantization: {QUANTIZATION.upper()}")

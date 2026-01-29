@@ -2,9 +2,9 @@ services:
   ai-worker:
     build:
       context: .
-      dockerfile: src/ai-worker/Dockerfile
-      # BuildKit 활성화 (cache mount 사용)
-      # 캐시 경로를 영구 디렉토리로 설정 (재부팅에도 유지)
+      dockerfile: src/ai_worker/Dockerfile
+      # Enable BuildKit (use cache mount)
+      # Set cache path to persistent directory (persists across reboots)
       x-bake:
         cache-from:
           - type=local,src=C:/Docker/buildx-cache
@@ -13,8 +13,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src:/app/src  # (선택) 코드 수정 시 바로 반영되게 마운트
-      - huggingface-cache:/root/.cache/huggingface  # 모델 캐시 영구 저장 (재빌드 시 재다운로드 방지)
+      - ./src:/app/src  # (Optional) Mount for immediate code changes
+      - huggingface-cache:/root/.cache/huggingface  # Persistent model cache storage (prevents redownload on rebuild)
     deploy:
       resources:
         reservations:
@@ -22,14 +22,14 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    # GPU가 없거나 설정 안 됐으면 위 deploy 섹션은 일단 주석 처리하세요.
-    restart: on-failure:3  # 실패 시 최대 3회까지만 재시작
+    # Comment out the deploy section above if no GPU or not configured.
+    restart: on-failure:3  # Restart max 3 times on failure
     stop_grace_period: 30s
     init: true
 
 # Named volumes for persistent storage
 volumes:
   huggingface-cache:
-    # HuggingFace 모델 캐시용 영구 볼륨
-    # Windows 위치: Docker Desktop → Settings → Resources → Disk image location
-    # 약 20-30GB 디스크 공간 필요 (Qwen2.5-7B = ~15GB)
+    # Persistent volume for HuggingFace model cache
+    # Windows location: Docker Desktop -> Settings -> Resources -> Disk image location
+    # Approx 20-30GB disk space required (Qwen2.5-7B = ~15GB)
