@@ -132,7 +132,8 @@ Generate 3-5 diverse search queries:"""
 def analyze_search_results(request_id, topic, db, llm):
     """
     Phase 2: Analyze search results and generate summary
-    
+    Uses Map-Reduce if context exceeds limit.
+
     Args:
         request_id: UUID of the request
         topic: Original user topic
@@ -151,39 +152,110 @@ def analyze_search_results(request_id, topic, db, llm):
     if not search_results:
         raise ValueError(f"No search results found for request {request_id}")
     
-    # Build context from search results
     print(f"📚 Found {len(search_results)} search results")
     
-    # Token limit settings
-    # Reserve tokens: system prompt (~200) + user prompt template (~100) + output (~1536) + buffer (~500)
-    # MAX_MODEL_LEN is typically 4096-8192, so we allow ~2000-5000 tokens for context
-    MAX_CONTEXT_CHARS = (MAX_MODEL_LEN - 2500) * 3  # ~3 chars per token approximation
+    # 1. Initialize Tokenizer & Constants
+    tokenizer = llm.get_tokenizer()
     
-    context_parts = []
-    total_chars = 0
+    # Reserve tokens:
+    # System Prompt (~200) + User Template (~100) + Output Buffer (~1500) = ~1800
+    # Safe Context Limit = MAX_MODEL_LEN - 1800
+    RESERVED_TOKENS = 1800
+    MAX_CONTEXT_TOKENS = MAX_MODEL_LEN - RESERVED_TOKENS
     
+    # Chunk size for "Map" phase (smaller to fit multiple chunks if needed, or just safe margin)
+    # If we map, we want chunks to be well within limits.
+    MAP_CHUNK_SIZE = 3000 
+    
+    # 2. Prepare content items
+    content_items = []
     for idx, result in enumerate(search_results, 1):
-        # Truncate individual content if too long
-        content = result.content[:2000] if result.content else ""
-        
-        part = (
+        # Format: "[Result N] Title: ... Content: ..."
+        content = result.content[:10000] if result.content else "" # Hard cap just in case
+        text_item = (
             f"[결과 {idx}]\n"
             f"제목: {result.title}\n"
             f"URL: {result.url}\n"
             f"내용: {content}\n"
         )
+        content_items.append(text_item)
         
-        # Check if adding this part would exceed limit
-        if total_chars + len(part) > MAX_CONTEXT_CHARS:
-            print(f"⚠️  Context limit reached at result {idx}, truncating...")
-            break
+    # 3. Calculate total tokens
+    full_context_str = "\n---\n".join(content_items)
+    total_tokens = len(tokenizer.encode(full_context_str))
+    
+    print(f"📊 Total Context Tokens: {total_tokens} (Limit: {MAX_CONTEXT_TOKENS})")
+    
+    final_context = ""
+    
+    # 4. Strategy Selection
+    if total_tokens <= MAX_CONTEXT_TOKENS:
+        # --- STRATEGY A: Direct Analysis (Fits in context) ---
+        print("✅ Context fits in limit. Proceeding with direct analysis.")
+        final_context = full_context_str
         
-        context_parts.append(part)
-        total_chars += len(part)
+    else:
+        # --- STRATEGY B: Map-Reduce ---
+        print("⚠️  Context exceeds limit. Triggering Map-Reduce...")
+        
+        # [Map Phase] Split into chunks and summarize individually
+        chunks = []
+        current_chunk = []
+        current_tokens = 0
+        
+        for item in content_items:
+            item_tokens = len(tokenizer.encode(item))
+            
+            # If a single item is too huge, truncate it (rare but possible)
+            if item_tokens > MAP_CHUNK_SIZE:
+                # Naive truncation for simple safety
+                ratio = MAP_CHUNK_SIZE / item_tokens
+                cut_len = int(len(item) * ratio)
+                item = item[:cut_len] + "...(truncated)"
+                item_tokens = MAP_CHUNK_SIZE
+            
+            if current_tokens + item_tokens > MAP_CHUNK_SIZE:
+                # Finalize current chunk
+                chunks.append("\n---\n".join(current_chunk))
+                current_chunk = [item]
+                current_tokens = item_tokens
+            else:
+                current_chunk.append(item)
+                current_tokens += item_tokens
+        
+        if current_chunk:
+            chunks.append("\n---\n".join(current_chunk))
+            
+        print(f"🧩 Split into {len(chunks)} chunks for parallel summarization.")
+        
+        # Generate summaries for each chunk in parallel
+        map_prompts = []
+        map_system_prompt = "You are a research assistant. Summarize the provided search results in Korean. Extract key facts relevant to the topic."
+        
+        for i, chunk in enumerate(chunks, 1):
+            user_msg = f"Topic: {topic}\n\nChunk {i}/{len(chunks)}:\n{chunk}\n\nSummarize key points in Korean:"
+            # Construct prompt for this chunk
+            p = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{map_system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_msg}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            map_prompts.append(p)
+            
+        print(f"🚀 Running batch inference for {len(chunks)} chunks...")
+        
+        # Use slightly more aggressive params for speed
+        map_params = SamplingParams(temperature=0.7, max_tokens=1024)
+        map_outputs = llm.generate(map_prompts, map_params)
+        
+        intermediate_summaries = []
+        for output in map_outputs:
+            intermediate_summaries.append(output.outputs[0].text.strip())
+            
+        # [Reduce Phase] Combine summaries
+        print("🔗 Combining intermediate summaries...")
+        combined_summaries = "\n\n---\n\n".join([f"Summary Part {i+1}:\n{s}" for i, s in enumerate(intermediate_summaries)])
+        
+        final_context = combined_summaries
+        print(f"📉 Reduced Context Tokens: {len(tokenizer.encode(final_context))}")
 
-    context = "\n---\n".join(context_parts)
-    print(f"📄 Total Context Length: {len(context)} characters (~{len(context)//3} tokens)")
-
+    # 5. Final Analysis
     # System prompt for analysis
     system_prompt = """You are a professional information summarization assistant.
 
@@ -199,10 +271,10 @@ Your response must be entirely in Korean."""
 
     user_prompt = f"""Topic: {topic}
 
-Search Results:
-{context}
+Search Results (or Summarized Context):
+{final_context}
 
-Summarize the above search results about '{topic}' in Korean language."""
+Summarize the above information about '{topic}' in Korean language."""
 
     # Llama 3.1 Chat Template
     prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -219,18 +291,17 @@ Summarize the above search results about '{topic}' in Korean language."""
         top_p=0.9,
         max_tokens=1536,
         repetition_penalty=1.1,
-        frequency_penalty=0.2,
-        presence_penalty=0.0,
+        frequency_penalty=0.2
     )
 
     # LLM inference
-    print("🧠 Analyzing with vLLM...")
+    print("🧠 Analyzing with vLLM (Final Pass)...")
     outputs = llm.generate([prompt], sampling_params)
     summary = outputs[0].outputs[0].text.strip()
     
     inference_time_ms = int((time_module.time() - start_time) * 1000)
     
-    print(f"✅ Analysis completed in {inference_time_ms}ms")
+    print(f"✅ Analysis completed in {inference_time_ms}ms (Total)")
     print(f"📊 Summary length: {len(summary)} characters")
     print("\n" + "=" * 60)
     print("GENERATED SUMMARY:")
